@@ -1,39 +1,22 @@
-from flask import Flask, request, jsonify
-import joblib
-import numpy as np
-import os
+from flask import Flask, jsonify
+from src.models.predict_model import qa, predict_sales, predict_overallSentiment, predict_singleSentiment, \
+    predict_sentimentScore
 
 app = Flask(__name__)
 
-MODEL_PATH = "models/latest.joblib"
+@app.route("/ping", methods=["GET"])
+def ping():
+    return jsonify({"response": "pong"})
 
-if os.path.exists(MODEL_PATH):
-    model = joblib.load(MODEL_PATH)
-else:
-    raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
+app.add_url_rule("/api/qa", view_func=qa)
 
+app.add_url_rule("/api/salesPredict", view_func=predict_sales, methods=["POST"])
 
-@app.route("/", methods=["GET"])
-def index():
-    return jsonify({"message": "ML prediction API is running"})
+app.add_url_rule("/api/overallSentiment", view_func=predict_overallSentiment, methods=["POST"])
 
+app.add_url_rule("/api/singleSentiment", view_func=predict_singleSentiment, methods=["GET"])
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    try:
-        data = request.get_json()
-        features = data.get("features")
-        if not features or not isinstance(features, list):
-            return jsonify({"error": "Missing or invalid 'features' field"}), 400
-
-        input_array = np.array(features).reshape(1, -1)
-
-        prediction = model.predict(input_array)
-        return jsonify({"prediction": int(prediction[0])})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+app.add_url_rule("/api/sentimentScore", view_func=predict_sentimentScore, methods=["GET"])
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

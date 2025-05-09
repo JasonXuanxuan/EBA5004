@@ -1,0 +1,15 @@
+refund_amount
+refund_users
+live_refund_users
+live_click_users
+click_users
+card_refund_orders
+review_count
+card_refund_users
+positive_reviews
+card_buyer_count
+card_order_count
+card_sales_volume
+negative_reviews
+live_exposure_users
+card_refund_amount
