@@ -7,5 +7,5 @@ from src import regression, aspect_frequency, absa_model
 
 if __name__ == "__main__":
     absa_model()
-    # aspect_frequency()
-    # regression()
+    aspect_frequency()
+    regression()
