@@ -3,8 +3,9 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src import regression, aspect_frequency
+from src import regression, aspect_frequency, absa_model
 
 if __name__ == "__main__":
-    aspect_frequency()
+    absa_model()
+    # aspect_frequency()
     # regression()

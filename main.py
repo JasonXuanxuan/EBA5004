@@ -12,11 +12,13 @@ app.add_url_rule("/api/qa", view_func=qa)
 
 app.add_url_rule("/api/salesPredict", view_func=predict_sales, methods=["POST"])
 
-app.add_url_rule("/api/overallSentiment", view_func=predict_overallSentiment, methods=["POST"])
 
-app.add_url_rule("/api/singleSentiment", view_func=predict_singleSentiment, methods=["GET"])
+app.add_url_rule("/api/overallSentiment",view_func=predict_overallSentiment, methods=["POST"])
 
-app.add_url_rule("/api/sentimentScore", view_func=predict_sentimentScore, methods=["GET"])
+app.add_url_rule("/api/singleSentiment", view_func=predict_singleSentiment,methods=["GET"])
+
+app.add_url_rule("/api/sentimentScore", view_func=predict_sentimentScore,methods=["POST"])
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

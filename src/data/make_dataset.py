@@ -1,7 +1,11 @@
 import pandas as pd
 from snownlp import SnowNLP
-from tqdm import tqdm
-import jieba
+import pandas as pd
+from src.analytics.aspect_frequency_analysis import extract_nouns
+from transformers import BertTokenizer, BertForSequenceClassification
+from torch.nn.functional import softmax
+import torch
+from collections import Counter
 
 # 1.Preprocess data for regression
 def load_datasets(comment_path, commodity_path):
@@ -98,136 +102,33 @@ def aggregate_sentiment(comment_df):
     }).reset_index()
 
 # # 2.Preprocess for sentiment analytics
-# # ========== Utility Function ==========
-# def score_to_polarity(score):
-#     if score is None:
-#         return 'neutral'
-#     elif score >= 0.6:
-#         return 'positive'
-#     elif score <= 0.4:
-#         return 'negative'
-#     else:
-#         return 'neutral'
-#
-#
-# # ========== Aspect-Context Window Extraction ==========
-# def extract_aspect_contexts(text, aspects, window_size=6):
-#     """
-#     Given a text and its aspect terms, return context windows around each aspect using a fixed token window.
-#     """
-#     tokens = list(jieba.cut(text))
-#     contexts = []
-#     for i, token in enumerate(tokens):
-#         if token in aspects:
-#             start = max(0, i - window_size)
-#             end = min(len(tokens), i + window_size + 1)
-#             sub_text = ''.join(tokens[start:end])
-#             contexts.append((token, sub_text))
-#     return contexts
-#
-#
-# # ========== Core Function: Score Each Aspect with Context ==========
-# def aspect_context_sentiment_analysis(df, aspect_col='aspects', text_col='cleaned_content'):
-#     all_data = []
-#     for idx, row in tqdm(df.iterrows(), total=len(df), desc="Scoring each aspect..."):
-#         text = row[text_col]
-#         aspects = row[aspect_col]
-#         aspect_contexts = extract_aspect_contexts(text, aspects)
-#
-#         for aspect, context in aspect_contexts:
-#             score = SnowNLP(context).sentiments
-#             all_data.append({
-#                 'index': idx,
-#                 'original_text': row['内容'],
-#                 'product_id': row['商品ID'] if '商品ID' in row else None,
-#                 'aspect': aspect,
-#                 'context': context,
-#                 'score': score,
-#                 'label': score_to_polarity(score)
-#             })
-#
-#     aspect_df = pd.DataFrame(all_data)
-#     return aspect_df
-#
-#
-# # ========== Main Entrypoint ==========
-# def run_aspect_context_sentiment(df, aspect_col='aspects', text_col='cleaned_content'):
-#     """
-#     Score each extracted aspect in the given DataFrame using contextual sentiment.
-#     """
-#     if aspect_col not in df.columns:
-#         raise ValueError(f"Column '{aspect_col}' not found. Please run aspect extraction first.")
-#
-#     return aspect_context_sentiment_analysis(df, aspect_col=aspect_col, text_col=text_col)
-#
-# # ========== Pseudo Labeling Function ==========
-# def generate_pseudo_label(row, pos_words=None, neg_words=None):
-#     """
-#     Generate pseudo labels using aspect context + SnowNLP + sentiment word rules:
-#     - 1: Positive (score >= 0.65 or positive word matched)
-#     - 0: Negative (score <= 0.35 or negative word matched)
-#     - 2: Neutral (otherwise)
-#     """
-#     text = row['cleaned_content']
-#     aspect = row['aspect']
-#
-#     if pos_words is None:
-#         pos_words = ["喜欢", "好看", "满意", "舒服", "推荐", "柔软", "合适", "贴身", "显瘦", "值", "划算"]
-#     if neg_words is None:
-#         neg_words = ["失望", "难看", "差", "瑕疵", "小", "紧", "大", "不值", "掉色", "粗糙", "不舒服"]
-#
-#     tokens = list(jieba.cut(text))
-#     try:
-#         idx = tokens.index(aspect)
-#     except ValueError:
-#         return 2  # Neutral if aspect not found
-#
-#     window = tokens[max(0, idx - 6):idx + 7]
-#     context = ''.join(window)
-#     score = SnowNLP(context).sentiments
-#
-#     if any(word in context for word in pos_words):
-#         return 1
-#     elif any(word in context for word in neg_words):
-#         return 0
-#     elif score >= 0.65:
-#         return 1
-#     elif score <= 0.35:
-#         return 0
-#     else:
-#         return 2
-#
-# # ========== Main Export Function ==========
-# def export_aspect_training_with_pseudo_label(
-#     results,
-#     method='tfidf',
-#     text_col='cleaned_content',
-#     output_path='aspect_training_pseudo.xlsx'
-# ):
-#     """
-#     Generate training samples (text + aspect + pseudo label) from extracted aspects.
-#     """
-#     if method not in results or 'df' not in results:
-#         raise ValueError("The 'results' must contain both 'df' and the specified method's aspect counter.")
-#
-#     df = results['df'].copy()
-#     aspect_counter = results[method]
-#
-#     # Extract aspects from each review
-#     df['aspects'] = df[text_col].apply(lambda text: [a for a in aspect_counter if a in text])
-#
-#     records = []
-#     for _, row in df.iterrows():
-#         for aspect in row['aspects']:
-#             records.append({
-#                 'product_id': row.get('商品ID', ''),
-#                 'original_text': row['内容'],
-#                 'cleaned_content': row[text_col],
-#                 'aspect': aspect
-#             })
-#
-#     aspect_df = pd.DataFrame(records)
-#
-#     # Apply pseudo label function (optional - uncomment to label)
-#     aspect_df.to_excel(output_path, index=False)
-#     # return aspect_df
+import jieba.posseg as pseg
+def extract_aspect_and_label(text):
+    words = pseg.cut(text)
+    aspects = [word for word, flag in words if flag.startswith('n')]
+    primary_aspect = aspects[0] if aspects else "通用"
+
+    positive_keywords = ["好看", "舒服", "喜欢", "合适", "便宜", "满意", "完好", "质感", "无可挑剔"]
+    negative_keywords = ["退", "差", "不好", "异味", "不行", "不喜欢", "问题", "不满意", "失望"]
+
+    label = 1
+    if any(word in text for word in positive_keywords):
+        label = 2
+    elif any(word in text for word in negative_keywords):
+        label = 0
+
+    return pd.Series([primary_aspect, label])
+
+
+def preprocess_absa_excel(file_path: str) -> pd.DataFrame:
+    df = pd.read_excel(file_path)
+
+    if "内容" not in df.columns:
+        raise ValueError("缺少评论内容列 '内容'")
+
+    df = df.rename(columns={"内容": "text"})
+
+    # 自动提取 aspect 和 label
+    df[["aspect", "label"]] = df["text"].apply(extract_aspect_and_label)
+
+    return df[["text", "aspect", "label"]]

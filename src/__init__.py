@@ -8,6 +8,8 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
+from src.data.make_dataset import preprocess_absa_excel
+from src.models.train_model import train_bert_absa_classifier
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 def regression():
@@ -66,3 +68,13 @@ def aspect_frequency():
     aspect_level_df_tfidf.to_excel("logs/aspect_level_df_tfidf.xlsx", index=False)
     aspect_level_df_pos.to_excel("logs/aspect_level_df_pos.xlsx", index=False)
     aspect_level_df_dep.to_excel("logs/aspect_level_df_dep.xlsx", index=False)
+
+def absa_model():
+    df = preprocess_absa_excel("data/raw/comment_dataset.xlsx")
+    train_bert_absa_classifier(
+        train_df=df,
+        model_name='bert-base-chinese',
+        num_labels=3,
+        max_length=128,
+        output_dir='models/bert_absa'
+    )

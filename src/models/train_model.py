@@ -7,6 +7,15 @@ from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_err
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 import lightgbm as lgb
+from transformers import (
+    BertTokenizer,
+    BertForSequenceClassification,
+    Trainer,
+    TrainingArguments
+)
+from datasets import Dataset
+import logging
+import os
 
 class ChineseQASystem:
     def __init__(self, data_path="data/raw/comment_dataset.xlsx"):
@@ -99,3 +108,49 @@ def evaluate_model(model, X_test, y_test):
     mae = mean_absolute_error(y_test, predictions)
     r2 = r2_score(y_test, predictions)
     return {"RMSE": rmse, "MAE": mae, "R2": r2}
+
+
+def train_bert_absa_classifier(train_df, model_name='bert-base-chinese', num_labels=3, max_length=128, output_dir='models'):
+    tokenizer = BertTokenizer.from_pretrained(model_name)
+    def tokenize(example):
+        return tokenizer(example["text"], example["aspect"], truncation=True, padding="max_length", max_length=max_length)
+
+    dataset = Dataset.from_pandas(train_df)
+    dataset = dataset.map(tokenize, batched=True)
+    dataset = dataset.rename_column("label", "labels")
+    dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+
+    train_test = dataset.train_test_split(test_size=0.2)
+    model = BertForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
+
+    os.makedirs("logs", exist_ok=True)
+    logging.basicConfig(filename="logs/training_output.log", level=logging.INFO, format="%(asctime)s - %(message)s")
+    print(">>> TrainingArguments module:", TrainingArguments.__module__)
+
+    trainer = Trainer(
+        model=model,
+        args=TrainingArguments(
+            output_dir=output_dir,
+            evaluation_strategy="epoch",
+            per_device_train_batch_size=8,
+            per_device_eval_batch_size=8,
+            num_train_epochs=3,
+            weight_decay=0.01,
+            logging_dir='logs',
+            logging_strategy="epoch",
+            logging_steps=10,
+            save_strategy="epoch",
+            report_to="none"  # prevents WandB fallback errors
+        ),
+        train_dataset=train_test['train'],
+        eval_dataset=train_test['test'],
+    )
+
+    logging.info("Starting training...")
+    trainer.train()
+    logging.info("Training completed.")
+    eval_results = trainer.evaluate()
+    logging.info(f"Evaluation Results: {eval_results}")
+
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
